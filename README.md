@@ -2,7 +2,20 @@
 
 Antaeus (/ænˈtiːəs/), in Greek mythology, a giant of Libya, the son of the sea god Poseidon and the Earth goddess Gaia. He compelled all strangers who were passing through the country to wrestle with him. Whenever Antaeus touched the Earth (his mother), his strength was renewed, so that even if thrown to the ground, he was invincible. Heracles, in combat with him, discovered the source of his strength and, lifting him up from Earth, crushed him to death.
 
-Welcome to our challenge.
+## What are we building?
+
+Pleo's monthly subscription charging service
+
+## Why are we building it?
+
+To automate and simplify Pleo's invoice charging process
+
+## Thought process
+
+  1. Structure - Navigate the project to see what goes where, check out build options and instructions, get a feel for the language and start up an instance
+  2. Data - Run curls toward rest endpoints, make sure they all work, as well as note down what the data looks like
+  3. Next steps - List a few to-do items to get the basic logic in place
+  4. Tests - Start building tests for the desired outcomes
 
 ## The challenge
 
