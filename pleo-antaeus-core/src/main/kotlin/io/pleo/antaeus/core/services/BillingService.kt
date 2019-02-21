@@ -1,17 +1,45 @@
 package io.pleo.antaeus.core.services
 
+import io.pleo.antaeus.core.exceptions.CurrencyMismatchException
 import io.pleo.antaeus.core.external.PaymentProvider
+import io.pleo.antaeus.models.Invoice
 
-class BillingService(private val paymentProvider: PaymentProvider) {
+class BillingService(private val paymentProvider: PaymentProvider, private val invoiceService: InvoiceService, private val customerService: CustomerService) {
 
-    // Todo: Inject invoice and customer services
+    // Todo Add logging
+    // private val logger = KotlinLogging.logger {}
 
-    // Todo Implement charge
-    fun charge() {}
+    /**
+     * Pays all invoices
+     */
+    fun payInvoices() {
+
+        val invoices = invoiceService.fetchAll()
+        for (invoice in invoices) {
+            payInvoice(invoice)
+        }
+
+    }
+
+    /**
+     * Pays single invoice
+     */
+    private fun payInvoice(invoice: Invoice): Boolean {
+        val customer = customerService.fetch(invoice.customerId)
+        if (customer.currency != invoice.amount.currency) {
+            throw CurrencyMismatchException(invoice.id, customer.id)
+        }
+        return paymentProvider.charge(invoice)
+    }
+
+    /**
+     * Pays single invoice wrapper
+     */
+    fun payInvoice(invoiceId: Int): Boolean {
+        return payInvoice(invoiceService.fetch(invoiceId))
+    }
 
     /* Todo: Check and throw exception
-         1. when no customer has the given id - `CustomerNotFoundException`
-         2. when the currency does not match the customer account - `CurrencyMismatchException`
          3. when a network error happens - `NetworkException`
     */
 }
