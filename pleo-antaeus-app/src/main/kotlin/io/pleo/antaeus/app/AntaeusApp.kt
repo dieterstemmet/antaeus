@@ -8,6 +8,7 @@
 package io.pleo.antaeus.app
 
 import getPaymentProvider
+import io.pleo.antaeus.core.tasks.PaymentTask
 import io.pleo.antaeus.core.services.BillingService
 import io.pleo.antaeus.core.services.CustomerService
 import io.pleo.antaeus.core.services.InvoiceService
@@ -23,6 +24,7 @@ import org.jetbrains.exposed.sql.transactions.TransactionManager
 import org.jetbrains.exposed.sql.transactions.transaction
 import setupInitialData
 import java.sql.Connection
+import java.util.*
 
 fun main() {
     // The tables to create in the database.
@@ -57,6 +59,10 @@ fun main() {
 
     // Create billing service
     val billingService = BillingService(paymentProvider = paymentProvider, invoiceService = invoiceService, customerService = customerService)
+
+    // Set up payment scheduling
+    val timer = Timer()
+    timer.schedule(PaymentTask(billingService, timer), Date())
 
     // Create REST web service
     AntaeusRest(

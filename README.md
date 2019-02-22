@@ -19,6 +19,12 @@ To automate and simplify Pleo's invoice charging process
   5. Exception logic - Get the basic exception handling in place and test
   6. Expose functionality - Add rest calls to expose the billing service
   7. Invoice logic - Introduce logic for invoice statuses
+  8. Counters - Add success and failure tracking mechanisms
+  9. Logging - Add basic logging
+  10. Retries - Build in retries on payment failures
+  11. Further testing - Introduce additional mock payment providers and tweak some tests
+  12. Scheduling - Add automatic payment run scheduling
+  13. Test run - Start up the app, run a few payments and ensure logs clearly communicate what's happening behind the scenes
 
 ## The challenge
 

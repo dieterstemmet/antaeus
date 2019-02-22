@@ -7,7 +7,10 @@ package io.pleo.antaeus.rest
 import io.javalin.Javalin
 import io.javalin.apibuilder.ApiBuilder.get
 import io.javalin.apibuilder.ApiBuilder.path
+import io.pleo.antaeus.core.exceptions.CurrencyMismatchException
+import io.pleo.antaeus.core.exceptions.CustomerNotFoundException
 import io.pleo.antaeus.core.exceptions.EntityNotFoundException
+import io.pleo.antaeus.core.exceptions.NetworkException
 import io.pleo.antaeus.core.services.BillingService
 import io.pleo.antaeus.core.services.CustomerService
 import io.pleo.antaeus.core.services.InvoiceService
@@ -29,7 +32,18 @@ class AntaeusRest (
     private val app = Javalin
         .create()
         .apply {
-            // Todo: Handle new exceptions
+            // CustomerNotFoundException: return 403 HTTP status code
+            exception(CustomerNotFoundException::class.java) { _, ctx ->
+                ctx.status(403)
+            }
+            // NetworkException: return 403 HTTP status code
+            exception(NetworkException::class.java) { _, ctx ->
+                ctx.status(403)
+            }
+            // CurrencyMismatchException: return 403 HTTP status code
+            exception(CurrencyMismatchException::class.java) { _, ctx ->
+                ctx.status(403)
+            }
             // InvoiceNotFoundException: return 404 HTTP status code
             exception(EntityNotFoundException::class.java) { _, ctx ->
                 ctx.status(404)
