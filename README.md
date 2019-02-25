@@ -10,6 +10,30 @@ Pleo's monthly subscription charging service
 
 To automate and simplify Pleo's invoice charging process
 
+## How to use it
+
+Start up the app and fire a GET request to the following URLs;
+
+- Starts a billing run for all invoices
+/rest/v1/billing - with optional query parameters:
+retry=false - Whether or not a retry run should be scheduled (default is true)
+retryAfter=0.1 - Minutes between retries (default is 0.25)
+
+This will kick of a billing run and attempt to pay all invoices as well as retry all failed invoices three times
+
+- Starts a billing run for a single invoice
+/rest/v1/billing/<invoice-id>
+
+The request response will contain a Json object with the counters for the run, for example:
+```{
+   "paid": 48,
+   "failed": 52,
+   "invalid": 0,
+   "skipped": 900,
+   "total": 1000
+}```
+
+
 ## Thought process
 
   1. Structure - Navigate the project to see what goes where, check out build options and instructions, get a feel for the language and start up an instance
@@ -25,6 +49,18 @@ To automate and simplify Pleo's invoice charging process
   11. Further testing - Introduce additional mock payment providers and tweak some tests
   12. Scheduling - Add automatic payment run scheduling
   13. Test run - Start up the app, run a few payments and ensure logs clearly communicate what's happening behind the scenes
+  14. Fix bugs - Sort out any issues that might pop up on the first run
+  15. Check data - Make sure the data is correct with each run
+  16. Extra counters - Add nice-to-have counters and to have a better view of what's going on in the app
+  17. Stricter tests - Add counter checks in tests so we filter out more issues
+  18. Improved rest - Build in some query parameters to the rest call to improve external app control
+  19. Tweaking - Test different timing options and see what makes sense
+  20. Final tests - Run as many tests as possible and tweak where needed
+  21. Goals - Use the app with the end-user in mind and see whether it achieves all its goals
+
+# Future versions of the app
+- Expose retries with rest
+- Add GUI to manually fire billing runs
 
 ## The challenge
 

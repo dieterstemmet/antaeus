@@ -1,135 +1,108 @@
 package io.pleo.antaeus.core.services
 
+import io.pleo.antaeus.core.exceptions.AccountBalanceException
 import io.pleo.antaeus.core.exceptions.CurrencyMismatchException
 import io.pleo.antaeus.core.exceptions.CustomerNotFoundException
 import io.pleo.antaeus.core.exceptions.NetworkException
 import io.pleo.antaeus.core.external.PaymentProvider
 import io.pleo.antaeus.models.Invoice
 import io.pleo.antaeus.models.InvoiceStatus
+import io.pleo.antaeus.models.Summary
 import mu.KotlinLogging
 import java.math.BigDecimal
+import java.util.concurrent.Executors
+
 
 class BillingService(private val paymentProvider: PaymentProvider, private val invoiceService: InvoiceService, private val customerService: CustomerService) {
 
     private val logger = KotlinLogging.logger {}
 
+    // Summary counters
     internal var successCnt = 0
     internal var failureCnt = 0
-    private var retryList = ArrayList<Int>()
+    internal var invalidCnt = 0
+    internal var skippedCnt = 0
 
-    // Leaving this option so it can be exposed in later versions
+    // Whether or not a retry should be run for failed charges
     private var retry = true
+
+    // Amount of times to retry
+    private val retryLimit = 3
+    private var retryCnt = 0
+    private var retryAfterMin = 0.25
+
+    // List of charges to retry
+    private val retryList = mutableListOf<Int>()
 
     /**
      * Pays all invoices
      */
-    fun payInvoices() {
+    fun payInvoices(retryFailures: Boolean = true, retryAfter: Double = 0.25): Summary {
+
+        retry = retryFailures
+        retryAfterMin = retryAfter
 
         val invoices = invoiceService.fetchAll()
 
         if (invoices.isNotEmpty()) {
-            logger.debug { "Charging ${invoices.size} invoices" }
+            clearCounters()
+
+            logger.info { "Found ${invoices.size} invoices" }
+            for (invoice in invoices) {
+                payInvoice(invoice)
+            }
+
         } else {
-            logger.debug { "No invoices to charge" }
+            logger.warn { "No invoices found to charge" }
         }
 
-        for (invoice in invoices) {
-
-            if (payInvoice(invoice)) {
-                successCnt++
-                invoiceService.updateInvoice(invoice.id, InvoiceStatus.PAID)
-            } else {
-                failureCnt++
-                invoiceService.updateInvoice(invoice.id, InvoiceStatus.PENDING)
-            }
-
+        val executor = Executors.newSingleThreadExecutor()
+        executor.execute {
+            retryCnt = 0
+            retryFailures()
         }
 
-        retryFailures()
-
-        logger.debug { "Payment summary [successful payments: $successCnt; failures: $failureCnt]" }
-
-    }
-
-    private fun retryFailures() {
-
-        if (retry && retryList.isNotEmpty()) {
-
-            logger.debug { "Charging ${retryList.size} failed invoices" }
-
-            for (invoice in retryList) {
-
-                if (payInvoice(invoice)) {
-
-                    retryList.remove(invoice)
-                    successCnt++
-                    invoiceService.updateInvoice(invoice, InvoiceStatus.PAID)
-                    failureCnt--
-
-                }
-
-            }
-        }
+        val summary = Summary(successCnt, failureCnt, invalidCnt, skippedCnt, invoices.size)
+        logger.info { "Payment summary: $summary" }
+        return summary
 
     }
 
     /**
-     * Pays single invoice
+     * Pays a single invoice
      */
     private fun payInvoice(invoice: Invoice): Boolean {
 
-        logger.trace {
-            "Attempting to charge customer: ${invoice.customerId} " +
-                    "for invoice: ${invoice.id} " +
-                    "[${invoice.amount.value.setScale(2, BigDecimal.ROUND_HALF_UP)} " +
-                    "${invoice.amount.currency}]"
-        }
-        if (invoice.status == InvoiceStatus.PENDING) {
+        when {
 
-            try {
+            invoice.status == InvoiceStatus.PENDING -> {
 
-                val customer = customerService.fetch(invoice.customerId)
-                if (customer.currency != invoice.amount.currency) {
-
-                    // Throwing this here instead of waiting for the payment provider so we can fail faster
-                    throw CurrencyMismatchException(invoice.id, customer.id)
-
-                }
-
-                val result = paymentProvider.charge(invoice)
-
-                logger.trace {
-                    "Successfully charged: ${invoice.customerId} " +
+                logger.info {
+                    "Attempting to charge customer: ${invoice.customerId} " +
                             "for invoice: ${invoice.id} " +
                             "[${invoice.amount.value.setScale(2, BigDecimal.ROUND_HALF_UP)} " +
                             "${invoice.amount.currency}]"
                 }
-                return result
 
-            } catch (e: NetworkException) {
-                logger.error(e) {
-                    "Could not charge: ${invoice.customerId} " +
-                            "for invoice: ${invoice.id} " +
-                            "[${invoice.amount.value.setScale(2, BigDecimal.ROUND_HALF_UP)} " +
-                            "${invoice.amount.currency}]"
-                }
-                retryList.add(invoice.id)
-            } catch (e: CustomerNotFoundException) {
-                logger.error(e) {
-                    "Could not charge: ${invoice.customerId} " +
-                            "for invoice: ${invoice.id} " +
-                            "[${invoice.amount.value.setScale(2, BigDecimal.ROUND_HALF_UP)} " +
-                            "${invoice.amount.currency}], skipping invoice"
-                }
+                return chargePaymentProvider(invoice)
 
-            } catch (e: CurrencyMismatchException) {
-                logger.error(e) {
-                    "Could not charge: ${invoice.customerId} " +
-                            "for invoice: ${invoice.id} " +
-                            "[${invoice.amount.value.setScale(2, BigDecimal.ROUND_HALF_UP)} " +
-                            "${invoice.amount.currency}], skipping invoice"
-                }
+            }
 
+            invoice.status == InvoiceStatus.PAID -> {
+
+                logger.info {
+                    "Skipping customer: ${invoice.customerId} invoice: ${invoice.id} " +
+                            "[${invoice.amount.value.setScale(2, BigDecimal.ROUND_HALF_UP)} " +
+                            "${invoice.amount.currency}] already paid"
+                }
+                skippedCnt++
+
+            }
+            else -> {
+                logger.warn {
+                    "Unknown invoice status: ${invoice.status}, cannot pay"
+                }
+                invalidCnt++
             }
         }
 
@@ -138,23 +111,137 @@ class BillingService(private val paymentProvider: PaymentProvider, private val i
     }
 
     /**
-     * Pays single invoice wrapper
+     * Charges the payment provider
      */
-    fun payInvoice(invoiceId: Int): Boolean {
+    private fun chargePaymentProvider(invoice: Invoice): Boolean {
 
-        val result = payInvoice(invoiceService.fetch(invoiceId))
+        try {
 
-        if (result) {
-            successCnt++
-            invoiceService.updateInvoice(invoiceId, InvoiceStatus.PAID)
+            val customer = customerService.fetch(invoice.customerId)
+            if (customer.currency != invoice.amount.currency) {
 
-        } else {
+                // Throwing this here instead of waiting for the payment provider so we can fail faster
+                throw CurrencyMismatchException(invoice.id, customer.id)
+
+            }
+
+            if (paymentProvider.charge(invoice)) {
+
+                logger.info {
+                    "Successfully charged customer: ${invoice.customerId} " +
+                            "for invoice: ${invoice.id} " +
+                            "[${invoice.amount.value.setScale(2, BigDecimal.ROUND_HALF_UP)} " +
+                            "${invoice.amount.currency}]"
+                }
+
+                markSuccess(invoice.id)
+                return true
+
+            } else {
+                throw AccountBalanceException(invoice.customerId, invoice.id)
+            }
+
+        } catch (e: NetworkException) {
+            logger.error {
+                "Could not charge: ${invoice.customerId} " +
+                        "for invoice: ${invoice.id} " +
+                        "[${invoice.amount.value.setScale(2, BigDecimal.ROUND_HALF_UP)} " +
+                        "${invoice.amount.currency}]: ${e.message}"
+            }
             failureCnt++
-            invoiceService.updateInvoice(invoiceId, InvoiceStatus.PENDING)
+        } catch (e: CustomerNotFoundException) {
+            logger.error {
+                "Could not charge: ${invoice.customerId} " +
+                        "for invoice: ${invoice.id} " +
+                        "[${invoice.amount.value.setScale(2, BigDecimal.ROUND_HALF_UP)} " +
+                        "${invoice.amount.currency}]: ${e.message}, skipping invoice"
+            }
+            invalidCnt++
+        } catch (e: CurrencyMismatchException) {
+            logger.error {
+                "Could not charge: ${invoice.customerId} " +
+                        "for invoice: ${invoice.id} " +
+                        "[${invoice.amount.value.setScale(2, BigDecimal.ROUND_HALF_UP)} " +
+                        "${invoice.amount.currency}]: ${e.message}, skipping invoice"
+            }
+            invalidCnt++
+        } catch (e: AccountBalanceException) {
+            logger.error {
+                "Could not charge: ${invoice.customerId} " +
+                        "for invoice: ${invoice.id} " +
+                        "[${invoice.amount.value.setScale(2, BigDecimal.ROUND_HALF_UP)} " +
+                        "${invoice.amount.currency}]: ${e.message}"
+            }
+            failureCnt++
         }
 
-        return result
+        if (!retryList.contains(invoice.id)) {
+            retryList.add(invoice.id)
+        }
+        return false
 
+    }
+
+
+    /**
+     * Pay single invoice wrapper
+     */
+    fun payInvoice(invoiceId: Int): Boolean {
+        return payInvoice(invoiceService.fetch(invoiceId))
+    }
+
+    /**
+     * Marks an invoice payment as successful
+     */
+    private fun markSuccess(invoiceId: Int) {
+        successCnt++
+        invoiceService.updateStatus(invoiceId, InvoiceStatus.PAID)
+    }
+
+    /**
+     * Retries all failed payments
+     */
+    private fun retryFailures() {
+
+        if (retry && retryList.isNotEmpty()) {
+
+            while (retryCnt < retryLimit) {
+                retryCnt++
+
+                logger.info { "Running retry after $retryAfterMin minutes" }
+                Thread.sleep((retryAfterMin * 60000).toLong())
+
+                logger.info { "Paying ${retryList.size} failed invoices [retry run: $retryCnt/$retryLimit]" }
+
+                val iter = retryList.iterator()
+                while (iter.hasNext()) {
+                    val invoiceId = iter.next()
+                    if (payInvoice(invoiceId)) {
+                        logger.info { "Removing invoice: $invoiceId from the retry list" }
+                        iter.remove()
+                        failureCnt--
+                    }
+                }
+
+                val summary = Summary(successCnt, failureCnt, invalidCnt, skippedCnt, retryCnt)
+                logger.info { "Retry summary: $summary" }
+
+            }
+
+        } else {
+            logger.info { "No failed invoices to pay" }
+        }
+
+    }
+
+    /**
+     * Clears summary counters
+     */
+    private fun clearCounters() {
+        successCnt = 0
+        failureCnt = 0
+        invalidCnt = 0
+        skippedCnt = 0
     }
 
 }

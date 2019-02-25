@@ -31,13 +31,16 @@ internal fun brokenPaymentProvider(): PaymentProvider {
 }
 
 /**
- * Date utilities
+ * Date conversion utility
  */
 internal fun localDateTimeToDate(dateToConvert: LocalDateTime): Date {
     return Date.from(dateToConvert.atZone(ZoneId.systemDefault()).toInstant())
 }
 
-internal fun nextMonthsRunDate(): Date {
+/**
+ * Calculates when the first day of the next month is
+ */
+fun nextMonthsRunDate(): Date {
     return localDateTimeToDate(LocalDateTime
             .now()
             .withHour(8)
@@ -47,6 +50,9 @@ internal fun nextMonthsRunDate(): Date {
             .withMonth(YearMonth.now().monthValue + 1))
 }
 
+/**
+ * Calculates when the next two seconds is
+ */
 internal fun nextTwoSeconds(): Date {
     return localDateTimeToDate(LocalDateTime
             .now()
