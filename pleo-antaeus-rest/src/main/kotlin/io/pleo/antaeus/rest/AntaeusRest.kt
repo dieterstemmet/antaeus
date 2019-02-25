@@ -15,6 +15,7 @@ import io.pleo.antaeus.core.services.BillingService
 import io.pleo.antaeus.core.services.CustomerService
 import io.pleo.antaeus.core.services.InvoiceService
 import mu.KotlinLogging
+import java.math.BigDecimal
 
 private val logger = KotlinLogging.logger {}
 
@@ -92,10 +93,11 @@ class AntaeusRest (
                        }
                    }
 
+                   // Path for billing runs
                    path("billing") {
                        // URL: /rest/v1/billing
                        get {
-                           it.json(billingService.payInvoices())
+                           it.json(billingService.payInvoices(it.queryParam("retry", "true")!!.toBoolean(), it.queryParam("retryAfter", "0.25")!!.toDouble()))
                        }
 
                        // URL: /rest/v1/billing/{:id}

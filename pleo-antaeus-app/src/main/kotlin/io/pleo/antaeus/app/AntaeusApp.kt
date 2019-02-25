@@ -8,10 +8,11 @@
 package io.pleo.antaeus.app
 
 import getPaymentProvider
-import io.pleo.antaeus.core.tasks.PaymentTask
 import io.pleo.antaeus.core.services.BillingService
 import io.pleo.antaeus.core.services.CustomerService
 import io.pleo.antaeus.core.services.InvoiceService
+import io.pleo.antaeus.core.tasks.PaymentTask
+import io.pleo.antaeus.core.tasks.nextMonthsRunDate
 import io.pleo.antaeus.data.AntaeusDal
 import io.pleo.antaeus.data.CustomerTable
 import io.pleo.antaeus.data.InvoiceTable
@@ -32,17 +33,17 @@ fun main() {
 
     // Connect to the database and create the needed tables. Drop any existing data.
     val db = Database
-        .connect("jdbc:sqlite:/tmp/data.db", "org.sqlite.JDBC")
-        .also {
-            TransactionManager.manager.defaultIsolationLevel = Connection.TRANSACTION_SERIALIZABLE
-            transaction(it) {
-                addLogger(StdOutSqlLogger)
-                // Drop all existing tables to ensure a clean slate on each run
-                SchemaUtils.drop(*tables)
-                // Create all tables
-                SchemaUtils.create(*tables)
+            .connect("jdbc:sqlite:/tmp/data.db", "org.sqlite.JDBC")
+            .also {
+                TransactionManager.manager.defaultIsolationLevel = Connection.TRANSACTION_SERIALIZABLE
+                transaction(it) {
+                    addLogger(StdOutSqlLogger)
+                    // Drop all existing tables to ensure a clean slate on each run
+                    SchemaUtils.drop(*tables)
+                    // Create all tables
+                    SchemaUtils.create(*tables)
+                }
             }
-        }
 
     // Set up data access layer.
     val dal = AntaeusDal(db = db)
@@ -62,7 +63,7 @@ fun main() {
 
     // Set up payment scheduling
     val timer = Timer()
-    timer.schedule(PaymentTask(billingService, timer), Date())
+    timer.schedule(PaymentTask(billingService, timer), nextMonthsRunDate())
 
     // Create REST web service
     AntaeusRest(
