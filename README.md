@@ -36,7 +36,7 @@ The request response will contain a Json object with the counters for the run, f
 
 - __/rest/v1/billing/{invoice-id}__ 
 
-The request response will contain a Json object with a ```true/false``` result of the invoice.
+The request response will contain a Json object with a ```true/false``` success/failure result of the payment.
 
 ## Thought process
 
