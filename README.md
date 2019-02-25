@@ -12,20 +12,21 @@ To automate and simplify Pleo's invoice charging process
 
 ## How to use it
 
-Start up the app and fire a GET request to the following URLs;
+Start up the app and fire a GET request to the following URLs:
+- **/rest/v1/billing**
 
-- Starts a billing run for all invoices
-/rest/v1/billing - with optional query parameters:
-retry=false - Whether or not a retry run should be scheduled (default is true)
-retryAfter=0.1 - Minutes between retries (default is 0.25)
+With optional query parameters:
+
+Whether or not a retry run should be scheduled (default is true)
+```retry=false```
+Minutes between retries (default is 0.25)
+```retryAfter=0.1```
 
 This will kick of a billing run and attempt to pay all invoices as well as retry all failed invoices three times
 
-- Starts a billing run for a single invoice
-/rest/v1/billing/<invoice-id>
-
 The request response will contain a Json object with the counters for the run, for example:
-```{
+```
+{
    "paid": 48,
    "failed": 52,
    "invalid": 0,
@@ -34,6 +35,9 @@ The request response will contain a Json object with the counters for the run, f
 }
 ```
 
+- __/rest/v1/billing/{invoice-id}__ 
+
+The request response will contain a Json object with a true/false result of the invoice payment.
 
 ## Thought process
 
