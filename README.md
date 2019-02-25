@@ -17,10 +17,9 @@ Start up the app and fire a GET request to the following URLs:
 
 With optional query parameters:
 
-Whether or not a retry run should be scheduled (default is true)
-```retry=false```
-Minutes between retries (default is 0.25)
-```retryAfter=0.1```
+```retry=false``` - whether or not a retry run should be scheduled (default is true)
+
+```retryAfter=0.1``` - minutes between retries (default is 0.25)
 
 This will kick of a billing run and attempt to pay all invoices as well as retry all failed invoices three times
 
@@ -37,7 +36,7 @@ The request response will contain a Json object with the counters for the run, f
 
 - __/rest/v1/billing/{invoice-id}__ 
 
-The request response will contain a Json object with a true/false result of the invoice payment.
+The request response will contain a Json object with a ```true/false``` result of the invoice.
 
 ## Thought process
 
